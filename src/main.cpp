@@ -17,9 +17,9 @@ using namespace std;
 #define CHARACTERISTIC_UUID_RX "6a1981ae-6033-456a-88a9-a0d6b3eab72f"
 #define CHARACTERISTIC_UUID_TX "c14b6701-76a3-454a-9dcf-80902b406cba"
 #define sizeSquare 5
-#define robotSelected 1 // 1 = Controlled - 2 = Pre defined
+#define robotSelected 1
 
-BLECharacteristic *characteristicTX; // através desse objeto iremos enviar dados para o client
+BLECharacteristic *characteristicTX;
 
 vector<String> split(String s, char del);
 void changePosition(int moviment[], String direction);
@@ -40,7 +40,7 @@ public:
     vector<String> getLevelInstruction();
 };
 
-bool deviceConnected = false; // controle de dispositivo conectado
+bool deviceConnected = false;
 
 int controlledMoviment[2] = {0, sizeSquare / 2};
 int levelMoviment[2] = {sizeSquare - 1, sizeSquare / 2};
@@ -128,36 +128,27 @@ void setup()
 
     Serial.begin(115200);
 
-    // Create the BLE Device
-    BLEDevice::init("RobotCar1"); // nome do dispositivo bluetooth
+    // Start device
+    BLEDevice::init("RobotCar1");
 
-    // Create the BLE Server
-    BLEServer *server = BLEDevice::createServer(); // cria um BLE server
-    // ServerCallbacks *servCall = new ServerCallbacks();
-    server->setCallbacks(new ServerCallbacks()); // seta o callback do server
+    // Start Server
+    BLEServer *server = BLEDevice::createServer();
+    server->setCallbacks(new ServerCallbacks());
 
-    // Create the BLE Service
+    // Start Service
     BLEService *service = server->createService(SERVICE_UUID);
-
-    // Create a BLE Characteristic para envio de dados
-    characteristicTX = service->createCharacteristic(CHARACTERISTIC_UUID_TX,
-                                                     BLECharacteristic::PROPERTY_NOTIFY);
+    characteristicTX = service->createCharacteristic(CHARACTERISTIC_UUID_TX, BLECharacteristic::PROPERTY_NOTIFY);
     characteristicTX->addDescriptor(new BLE2902());
 
-    // Create a BLE Characteristic para recebimento de dados
+    // Start Characteristic
     BLECharacteristic *characteristic = service->createCharacteristic(CHARACTERISTIC_UUID_RX, BLECharacteristic::PROPERTY_WRITE);
-
-    // CharacteristicCallbacks *corCall = new CharacteristicCallbacks();
     characteristic->setCallbacks(new CharacteristicCallbacks());
 
-    // Start the service
-    service->start();
 
-    // Start advertising (descoberta do ESP32)
+    service->start();
     server->getAdvertising()->start();
 
     Serial.println("Waiting device conect...");
-
     selfMoviment[0] = (robotSelected == 1) ? selfMoviment[0] : levelMoviment[0];
     selfMoviment[1] = (robotSelected == 1) ? selfMoviment[1] : levelMoviment[1];
 }
@@ -168,98 +159,66 @@ void loop()
     if (deviceConnected && currentMillis - previousMillis >= 3000)
     {
         previousMillis = currentMillis;
-        // sendMessage("Dispositivo conectado");
-        if (startMoviment && numMovimentCompiled < commandsCompiled.size() && !commandsCompiled[numMovimentCompiled][0].equals("nada"))
+        if (startMoviment && numMovimentCompiled < commandsCompiled.size() && !commandsCompiled[numMovimentCompiled][0].equals("none"))
         {
 
-            Serial.printf("Bloco atual: %d\n", numMovimentCompiled+1);
+            
+            // Print the table with the two robots
             for (int i = 0; i < sizeSquare; i++)
+            {
+                for (int j = 0; j < sizeSquare; j++)
                 {
-                    for (int j = 0; j < sizeSquare; j++)
+                    if (i == controlledMoviment[0] && j == controlledMoviment[1])
                     {
-                        if (i == controlledMoviment[0] && j == controlledMoviment[1])
-                        {
-                            Serial.print("x ");
-                        }
-                        else if (i == levelMoviment[0] && j == levelMoviment[1])
-                        {
-                            Serial.print("o ");
-                        }
-                        else
-                        {
-                            Serial.print("- ");
-                        }
+                        Serial.print("x ");
                     }
-                    Serial.println();
+                    else if (i == levelMoviment[0] && j == levelMoviment[1])
+                    {
+                        Serial.print("o ");
+                    }
+                    else
+                    {
+                        Serial.print("- ");
+                    }
                 }
                 Serial.println();
-
-            // Serial.printf("Posição do movimento próprio: linha %d coluna %d\n", levelMoviment[0] + 1, levelMoviment[1] + 1);
-            // Serial.printf("Posição do movimento compilado: linha %d coluna %d\n", controlledMoviment[0] + 1, controlledMoviment[1] + 1);
+            }
+            Serial.println();
 
             String tempLevel = currentLevelDetails.getLevelInstruction()[numMovimentLevel];
             numMovimentCompiled = (multiplierController != 1) ? numMovimentCompiled : numMovimentCompiled + 1;
             if (multiplierController > 1)
             {
-                
-                // Serial.println();
-
-                // Serial.println("Está repetindo");
-                // Serial.printf("Movimento do self: %s\n", commandsCompiled[numMovimentCompiled][0]);
                 changePosition(controlledMoviment, commandsCompiled[numMovimentCompiled][0]);
                 multiplierController--;
-                // Serial.println("\n");
             }
             else
             {
 
-                // Serial.printf("Movimento do self: %s\n", commandsCompiled[numMovimentCompiled][0]);
+                // Change Robot Position
                 changePosition(controlledMoviment, commandsCompiled[numMovimentCompiled][0]);
-
-                // Serial.printf("Movimento do other: %s\n", tempLevel);
                 changePosition(levelMoviment, tempLevel);
-                // Serial.println("\n");
-
+                
                 numMovimentLevel = (numMovimentLevel != currentLevelDetails.getLevelInstruction().size() - 1) ? numMovimentLevel + 1 : 0;
-
                 multiplierController = multiplier(commandsCompiled[numMovimentCompiled][1]);
-                // for (int i = 0; i < sizeSquare; i++)
-                // {
-                //     for (int j = 0; j < sizeSquare; j++)
-                //     {
-                //         if (i == controlledMoviment[0] && j == controlledMoviment[1])
-                //         {
-                //             Serial.print("x ");
-                //         }
-                //         else if (i == levelMoviment[0] && j == levelMoviment[1])
-                //         {
-                //             Serial.print("o ");
-                //         }
-                //         else
-                //         {
-                //             Serial.print("- ");
-                //         }
-                //     }
-                //     Serial.println();
-                // }
-                // Serial.println();
+
             }
 
             if (controlledMoviment[0] == levelMoviment[0] && controlledMoviment[1] == levelMoviment[1])
             {
                 startMoviment = false;
-                Serial.println("Robos encontrados");
-                sendMessage("Robos encontrados");
+                Serial.println("Robot found!");
+                sendMessage("Robot found!");
             }
 
             if (numMovimentCompiled == commandsCompiled.size() || !startMoviment)
             {
-                Serial.println("Fim de jogo!");
+                sendMessage("The game is over!");
+                Serial.println("The game is over!");
             }
         }
         else
         {
-            // Serial.print("Fim de jogo!");
             numMovimentLevel = 0;
             numMovimentCompiled = 0;
             multiplierController = 1;
@@ -298,19 +257,17 @@ void loop()
             }
         }
 
-        /** Teste para verificar a comunicação com o app via serial monitor
+        /** Test to verify the communication from app through serial monitor
         if (Serial.available())
         {
-            // Lê todos os caracteres até pressionar "Enter"
-            String input = Serial.readStringUntil('\n'); // Lê até o final da linha (Enter)
+            String input = Serial.readStringUntil('\n'); 
 
-            // Mostra no monitor serial o que foi enviado
-            Serial.print("O que estou enviando: ");
-            Serial.println(input); // Mostra a string completa
 
-            // Envia a string para o BLE
-            characteristicTX->setValue(input.c_str()); // Envia a string para a característica
-            characteristicTX->notify();                // Notifica que o valor foi alterado
+            Serial.print("What I'm sending: ");
+            Serial.println(input); 
+
+            characteristicTX->setValue(input.c_str()); 
+            characteristicTX->notify();                
         }
          */
     }
@@ -320,6 +277,11 @@ LevelDetails::LevelDetails()
 {
 }
 
+/**
+ * @brief Define the instructions pattern
+ * 
+ * @param dataReceived Vector with the follow format: command | level number | instructions 
+ */
 void LevelDetails::setValues(vector<String> dataReceived)
 {
     for (int i = 0; i < dataReceived.size(); i++)
@@ -338,18 +300,13 @@ void LevelDetails::setValues(vector<String> dataReceived)
         }
     }
 
-    /** Print informações sobre os dados carregados
+    /** Print information about data loaded
      *
      * Serial.println("Values loaded sucesfully!\n Number level: ");
     Serial.print(this->numLevel);
     Serial.print("Pattern level: ");
      *
      */
-
-    // for (String data : dataReceived)
-    // {
-    //     Serial.println(data);
-    // }
 }
 
 vector<String> LevelDetails::getLevelInstruction()
@@ -357,10 +314,17 @@ vector<String> LevelDetails::getLevelInstruction()
     return this->levelInstruction;
 }
 
-vector<String> split(String s, char del)
+/**
+ * @brief Split a string returning a vector
+ * 
+ * @param string_Splited string to be splited
+ * @param del character to split the string
+ * @return vector<String> 
+ */
+vector<String> split(String string_Splited, char del)
 {
     vector<String> retorno;
-    string strCpp = string(s.c_str());
+    string strCpp = string(string_Splited.c_str());
     stringstream ss(strCpp);
     string word;
     for (int i = 0; !ss.eof(); i++)
@@ -374,30 +338,42 @@ vector<String> split(String s, char del)
     return retorno;
 }
 
+/**
+ * @brief Change a moviment value in an array
+ * 
+ * @param moviment Moviment array
+ * @param direction
+ */
 void changePosition(int moviment[], String direction)
 {
-    if (direction.equals("frente") && moviment[0] < sizeSquare)
+    if (direction.equals("ahead") && moviment[0] < sizeSquare)
     {
-        // Serial.println("Fomos para frente");
+        
         moviment[0]++;
     }
-    else if (direction.equals("atras") && moviment[0] > 0 )
+    else if (direction.equals("back") && moviment[0] > 0)
     {
-        // Serial.println("Fomos para atras");
+        
         moviment[0]--;
     }
-    else if (direction.equals("direita") && moviment[1] > 0 )
+    else if (direction.equals("right") && moviment[1] > 0)
     {
-        // Serial.println("Fomos para direita");
+        
         moviment[1]--;
     }
-    else if (direction.equals("esquerda") && moviment[1] < sizeSquare)
+    else if (direction.equals("left") && moviment[1] < sizeSquare)
     {
-        // Serial.println("Fomos para esquerda");
+        
         moviment[1]++;
     }
 }
 
+/**
+ * @brief Calculate the multiplier value 
+ * 
+ * @param value Value to be calculate in String format
+ * @return int Return the calculated value
+ */
 int multiplier(String value)
 {
 
@@ -415,16 +391,15 @@ int multiplier(String value)
     }
 }
 
+/**
+ * 
+ * @brief Send a message to the connected device
+ * 
+ * @param message 
+ */
 void sendMessage(String message)
 {
     characteristicTX->setValue(message.c_str());
     characteristicTX->notify();
 }
 
-void changeVertical(int prev[2], int next[2])
-{
-}
-
-void changeHorizontal(int prev[2], int next[2])
-{
-}
